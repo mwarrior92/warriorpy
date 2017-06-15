@@ -1,0 +1,1 @@
+added code to get DNS information from measurement fragmented json

@@ -1,6 +1,5 @@
 import base64
 import dns.message
-import ripe_api as ra
 from warriorpy.net_tools import ipparsing as ipp
 ##################################################################
 #                           LOGGING
@@ -46,13 +45,6 @@ def parse_dns_json(data):
         ret['probe_ip'] = data['from']
         logger.error("failed to convert: "+data['from'])
     ret['probe_id'] = data['prb_id']
-    b, probe_info = ra.get_probe_info(ret['probe_id'])
-    if b:
-        ret['country'] = probe_info['country_code']
-        if 'asn_v4' in probe_info:
-            ret['asn_v4'] = probe_info['asn_v4']
-        if 'asn_v6' in probe_info:
-            ret['asn_v6'] = probe_info['asn_v6']
     ret['time'] = data['timestamp']
     ret['ipv4'] = dict()
     ret['ipv6'] = dict()
@@ -64,7 +56,7 @@ def parse_dns_json(data):
             try:
                 dnsmsg = decode_dns(res['result']['abuf'])
                 if len(dnsmsg.answer) > 0:
-                    ret['domain'] = dnsmsg.answer[0].name.to_text()
+                    ret['domain'] = dnsmsg.answer[0].name.to_text().lower()
                     ret[ipv]['ttl'] = dnsmsg.answer[0].ttl
                     ret[ipv]['answer_ip_list'] = list()
                     for i in dnsmsg.answer[0].items:
@@ -78,7 +70,7 @@ def parse_dns_json(data):
             try:
                 dnsmsg = decode_dns(res['result']['abuf'])
                 if len(dnsmsg.answer) > 0:
-                    ret['domain'] = dnsmsg.answer[0].name.to_text()
+                    ret['domain'] = dnsmsg.answer[0].name.to_text().lower()
                     ret[ipv]['ttl'] = dnsmsg.answer[0].ttl
                     ret[ipv]['answer_ip_list'] = list()
                     for i in dnsmsg.answer[0].items:
@@ -102,6 +94,4 @@ def parse_dns_json(data):
         ret[ipv]['QDCOUNT'] = res['result']['QDCOUNT']
         ret[ipv]['query_id'] = res['result']['ID']
         ret[ipv]['size'] = res['result']['size']
-        # what ldns was the probe actually using?
-        # ret[ipv]['observed_ldns'] = ra.get_ldns(ret['probe_id'])
     return ret

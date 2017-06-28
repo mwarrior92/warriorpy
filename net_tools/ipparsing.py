@@ -21,3 +21,9 @@ def ip2int(addr):
 def int2ip(addr):
     return socket.inet_ntoa(struct.pack("!I", addr))
 
+
+def make_v4_prefix_mask(masklen):
+    maskval = 2**32 - 1
+    maskval = maskval>>(32-masklen)
+    maskval = maskval<<(32-masklen)
+    return maskval

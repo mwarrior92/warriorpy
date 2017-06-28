@@ -21,7 +21,7 @@ class linereader:
     def __init__(self, filename):
         self.filename = filename
         self.gotmore = True
-        self.current_txt = ''
+        self.current_txt = ""
         try:
             self.f = open(filename, 'r')
             logger.debug("opened "+self.filename)
@@ -30,14 +30,16 @@ class linereader:
             logger.error('IOError reading '+filename)
 
     def getnext(self):
-        self.current_txt = self.next_txt
-        if self.current_txt is None:
-            self.gotmore = False
-        else:
+        if self.gotmore:
+            self.current_txt = self.next_txt
             try:
                 self.next_txt = self.f.readline()
             except IOError:
                 logger.error('IOError reading '+filename)
+            if self.next_txt == "":
+                self.gotmore = False
+        else:
+            self.current_txt = ""
         return self.current_txt
 
     def __del__(self):

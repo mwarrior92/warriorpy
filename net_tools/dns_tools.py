@@ -9,6 +9,7 @@ dns_tools.py - A collection of various DNS tools.
 
 import IPy
 import dns.resolver, dns.message, dns.rdatatype
+from ipwhois import IPWhois
 
 
 resolver = dns.resolver.Resolver()
@@ -44,3 +45,19 @@ def reverse_dns_lookup(server_ip):
             name = str(resp.rrset[0].target)
 
     return name
+
+
+def get_owner_name(server_ip):
+    '''
+    provide server IP in string format
+    returns NAME ({'network': 'name': NAME}) from result answer
+    '''
+    if IPy.IP(server_ip+"/32").iptype() == "PUBLIC":
+        tmp = IPWhois(server_ip)
+        res = tmp.lookup_rdap(depth=1)
+        try:
+            return res['network']['name']
+        except KeyError:
+            return None
+    else:
+        return None

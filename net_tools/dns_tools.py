@@ -47,17 +47,33 @@ def reverse_dns_lookup(server_ip):
     return name
 
 
-def get_owner_name(server_ip):
+def get_owner_name(server_ip, res=None):
     '''
     provide server IP in string format
     returns NAME ({'network': 'name': NAME}) from result answer
     '''
-    if IPy.IP(server_ip+"/32").iptype() == "PUBLIC":
-        tmp = IPWhois(server_ip)
-        res = tmp.lookup_rdap(depth=1)
-        try:
+    try:
+        if res is None:
+            if IPy.IP(server_ip+"/32").iptype() == "PUBLIC":
+                tmp = IPWhois(server_ip)
+                res = tmp.lookup_rdap(depth=1)
+                return res['network']['name']
+        else:
             return res['network']['name']
-        except KeyError:
-            return None
-    else:
-        return None
+    except Exception as e:
+        print e
+    return None
+
+
+def get_cidr(server_ip, res=None):
+    try:
+        if res is None:
+            if IPy.IP(server_ip+"/32").iptype() == "PUBLIC":
+                tmp = IPWhois(server_ip)
+                res = tmp.lookup_rdap(depth=1)
+                return res['network']['cidr']
+        else:
+            return res['network']['cidr']
+    except Exception as e:
+        print e
+    return None

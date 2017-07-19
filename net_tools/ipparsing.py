@@ -1,5 +1,6 @@
 from netaddr import IPNetwork as CIDR
 from netaddr import IPAddress as IP
+from IPy import IP as IP2
 import socket
 import struct
 
@@ -12,6 +13,12 @@ def is_local(ip):
         return True
     else:
         return False
+
+
+def is_public(ip):
+    if type(ip) is int:
+        ip = int2ip(ip)
+    return IP2(ip+"/32").iptype() == "PUBLIC"
 
 
 def ip2int(addr):
@@ -27,3 +34,26 @@ def make_v4_prefix_mask(masklen):
     maskval = maskval>>(32-masklen)
     maskval = maskval<<(32-masklen)
     return maskval
+
+
+prefix_cache = dict()
+
+def prefix_match(ip1, ip2):
+    if type(ip1) is not int:
+        ip1 = ip2int(ip1)
+    if type(ip2) is not int:
+        ip2 = ip2int(ip2)
+
+    tmp = sorted([ip1, ip2])
+    if tmp in prefix_cache:
+        return prefix_cache[tmp]
+
+    xnor = bin(~(ip1 ^ ip2))
+    bitcount = 0
+    for i in xrange(0, len(xnor)):
+        if xnor[i] == '1':
+            bitcount += 1
+        else:
+            break
+    prefix_cache[tmp] = bitcount
+    return bitcount

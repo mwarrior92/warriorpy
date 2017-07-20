@@ -3,6 +3,7 @@ from netaddr import IPAddress as IP
 from IPy import IP as IP2
 import socket
 import struct
+from numbers import Number
 
 def is_local(ip):
     '''
@@ -39,21 +40,16 @@ def make_v4_prefix_mask(masklen):
 prefix_cache = dict()
 
 def prefix_match(ip1, ip2):
-    if type(ip1) is not int:
+    if not isinstance(ip1, Number):
         ip1 = ip2int(ip1)
-    if type(ip2) is not int:
+    if not isinstance(ip2, Number):
         ip2 = ip2int(ip2)
 
-    tmp = sorted([ip1, ip2])
+    tmp = tuple(sorted([ip1, ip2]))
     if tmp in prefix_cache:
         return prefix_cache[tmp]
 
-    xnor = bin(~(ip1 ^ ip2))
-    bitcount = 0
-    for i in xrange(0, len(xnor)):
-        if xnor[i] == '1':
-            bitcount += 1
-        else:
-            break
+    xor = bin(ip1 ^ ip2)
+    bitcount = len(xor) - 2
     prefix_cache[tmp] = bitcount
     return bitcount

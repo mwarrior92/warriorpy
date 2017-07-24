@@ -417,3 +417,10 @@ class looplist(list):
         m_item = item % list_len
         tmp_list = list(self)
         return tmp_list[m_item]
+
+
+def tuplize(l):
+    if not hasattr(l, '__iter__'):
+        l = [l]
+    s = sorted(l)
+    return tuple(s)

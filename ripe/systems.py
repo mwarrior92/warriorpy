@@ -57,37 +57,16 @@ plotsdir = df.rightdir(basedir+"plots/")
 ##################################################################
 
 
-def deploy_measurement(request, mdroid):
+def deploy_measurement(mdroid):
+    request = mdroid.get_request()
+    th = mdroid.get_thread_handler()
     is_success, measids = ra.send_request(request)
     if is_success:
         mdroid.success_handler(measids)
         for m in measids:
-            mdroid.push_listener(m)
+            th.push_listen(mdroid)
     else:
-        mdroid.fail_handler(request)
-
-
-def listener(ld):
-    atlas_stream = AtlasStream()
-    atlas_stream.connect()
-    channel = "result"
-    atlas_stream.bind_channel(channel, ld['mdroid'].response_handler)
-    stream_parameters = {"msm":ld['m']}
-    atlas_stream.start_stream(stream_type="result", **stream_parameters)
-    atlas_stream.timeout(seconds=10)
-    atlas_stream.disconnect()
-
-
-def make_test(d):
-    if 'traceroute' in d:
-        return ra.make_traceroute_test(d['traceroute'])
-    elif 'ping' in d:
-        return ra.make_ping_test(d['ping'])
-    elif 'dns' in d:
-        return ra.make_dns_test(d['dns'])
-    else:
-        logger.error("incorrect usage of 'make_test': should be traceroute,
-            ping, or dns test")
+        mdroid.fail_handler()
 
 
 class measurement_droid:
@@ -96,9 +75,13 @@ class measurement_droid:
         self.tman = tman # thread_manager
         self.result_sets = list()
 
-        func = self.mseq.get_first_step()
+        func = self.mseq.get_next_step()
         request = func()
         self.push_request(request)
+
+
+    def get_thread_handler(self):
+        return self.tman
 
 
     def success_handler(self, measids):
@@ -108,23 +91,17 @@ class measurement_droid:
     def fail_handler(self, req):
         pass
 
-    def push_request(self, r):
-        self.tman.push_request({'request':r, 'mdroid':self})
-
-
-    def push_listener(self, m):
-        self.tman.push_listener({'m':m, 'mdroid':self})
-
 
     def response_handler(self, resp):
         measid = resp['measid']
-        step, arg = self.mseq.finished(measid, resp)
-        if arg is not None:
-            self.result_lists.append(arg)
-        func = self.mseq.get_action(step)
-        request = func(arg)
+        done, results = self.mseq.finished(measid, resp)
+        if done:
+            self.result_lists.append(results)
+        func = self.mseq.get_next_step()
+        request = func(results)
+        self.current_request = request
         if request is not None:
-            self.push_request(request)
+            self.tman.push_request(self)
 
 
 def do_nothing(arg):
@@ -134,39 +111,37 @@ def do_nothing(arg):
 class measurement_sequence:
     def __init__(self, seq):
         self.seq = seq # function list; should end with do_nothing
-        self.next_step = dict()
-        self.completed = dict()
+        self.step = 0
+        self.doing = set()
         self.results = defaultdict(list)
-        self.my_lock = threading.Lock()
+        self.lock = threading.Lock()
+        self.cond = threading.Condition(self.lock)
 
 
-    def get_first_step(self):
-        return self.seq[0]
+    def started(self, measids):
+        self.doing = set(measids)
 
 
-    def started(self, m, step):
-        t = df.tuplize(m)
-        self.step[t] = step
-        for m in t:
-            self.completed[m] = False
+    def finished(self, measid, result):
+        self.cond.acquire()
+        self.results[self.step].append(result)
+        results = self.results[self.step]
+        if measid in self.doing:
+            self.doing.remove(measid)
+        if len(self.doing) == 0:
+            done = True
+        else:
+            done = False
+        self.cond.release()
+        return done, results
 
 
-    def finished(self, m, result):
-        self.completed[m] = True
-        for s in self.step:
-            if m in s:
-                self.results[s].append(result)
-                if len([c for c in s if self.completed[c]]) == len(s):
-                    for c in s:
-                        del self.completed[c]
-                        return self.step[s]+1, results[s] # do something
-                    else:
-                        break
-            return -1, None # do nothing
-
-
-    def get_action(self, step=0):
-        return self.seq[step]
+    def get_next_step(self):
+        self.cond.acquire()
+        func = self.seq[self.step]
+        self.step += 1
+        self.cond.release()
+        return func
 
 
 def worker(pool):
@@ -243,74 +218,90 @@ class workpool:
 
 class thread_manager:
     def __init__(self, max_threads, request_pool):
-        self.request_pool = request_pool
         self.max_threads = max_threads
-        self.keep_going = True
-        self.listen = threading.Condition()
+        self.request_list = list()
         self.listener_list = list()
-        self.lock = threading.Condition()
+        self.request_lock = list()
+        self.listen_lock = list()
+        self.request_cond = threading.Condition(self.request_lock)
+        self.listen_cond = threading.Condition(self.listen_lock)
+        self.threads = list()
+        self.keep_going = True
+        self.busy_threads = 0
 
-        thread = threading.Thread(target=self.stir)
-        thread.daemon = True
-        thread.start()
-
-
-    def push_request(self, rd):
-        self.lock.acquire()
-        if threading.active_count() < self.max_threads():
-            self.request_pool.lock()
-            self.request_pool.push(rd)
-            self.request_pool.unlock()
-            thread = threading.Thread(target=worker, args=[self.request_pool])
-            thread.daemon = True
-            thread.start()
-        self.lock.release()
+        self.start_threads()
 
 
-    def push_listener(self, ld):
-        if threading.active_count() < self.max_threads():
-            thread = threading.Thread(target=listener, args=[ld])
-            thread.daemon = True
-            thread.start()
+    def busy_wait(self):
+        while self.busy_threads > self.max_threads - 1:
+            time.sleep(10*(1+self.busy_threads))
+
+
+    def start_threads(self):
+        while threading.active_count() < self.max_threads / 2:
+            self.threads.append(threading.Thread(target=self.worker))
+            self.threads[-1].daemon = True
+            self.threads[-1].start()
+
+        while threading.active_count() < self.max_threads / 2:
+            self.threads.append(threading.Thread(target=self.listener))
+            self.threads[-1].daemon = True
+            self.threads[-1].start()
+
+
+    def push_request(self, mdroid):
+        if self.request_lock.locked():
+            self.request_list.append(mdroid)
+            self.request_cond.notify()
         else:
-            self.listen.acquire()
-            self.listener_list.append(ld)
-            self.listen.release()
+            logger.error("bad code: tried to push to request list without\
+                    locking")
 
 
-    def stir_pools(self):
-        self.lock.acquire()
-        self.lock.notify()
-        self.lock.release()
+    def push_listen(self, mdroid):
+        if self.listen_lock.locked():
+            self.listen_list.append(mdroid)
+        else:
+            logger.error("bad code: tried to push to request list without\
+                    locking")
 
 
-    def stop_stirring(self):
-        self.keep_going = False
-
-
-    def stir(self):
-        # this gets notified by stir_pools whenever a thread finishes;
-        # it tries to make new threads to handle any outstanding items
-        self.lock.acquire()
+    def worker(self):
+        on = False
         while self.keep_going:
-            if threading.active_count() < self.max_threads:
-                ld = None
-                self.listen.acquire()
-                if len(self.listener_list) > 0:
-                    ld = self.listener_list.pop(0)
-                self.listen.release()
-                if ld is not None:
-                    self.push_listener(ld)
+            self.request_cond.acquire() #************ LOCK
+            if on:
+                self.busy_threads -= 1
+                on = False
+            while len(self.request_list) > 0:
+                self.request_cond.wait()
+            mdroid = self.request_list.pop(0)
+            self.busy_threads += 1
+            on = True
+            self.request_cond.release() #************ UNLOCK
 
-                rd = None
-                self.request_pool.lock()
-                if len(self.request_pool) > 0:
-                    thread = threading.Thread(target=worker, args=[self.request_pool])
-                    thread.daemon = True
-                    thread.start()
-            self.lock.wait()
-            time.sleep(1)
-        self.lock.release()
+            deploy_measurement(mdroid)
 
 
+    def listener(self):
+        on = False
+        while self.keep_going:
+            self.listen_cond.acquire() #************ LOCK
+            if on:
+                self.busy_threads -= 1
+            while len(self.request_list) > 0:
+                self.listen_cond.wait()
+            mdroid = self.listen_list.pop(0)
+            self.busy_threads += 1
+            on = True
+            self.listen_cond.release() #************ UNLOCK
 
+            sp = mdroid.get_stream_params()
+            atlas_stream = AtlasStream()
+            atlas_stream.connect()
+            channel = "result"
+            atlas_stream.bind_channel(channel, mdroid.response_handler)
+            stream_parameters = sp #{"msm":ld['m']}
+            atlas_stream.start_stream(stream_type="result", **stream_parameters)
+            atlas_stream.timeout(seconds=10)
+            atlas_stream.disconnect()

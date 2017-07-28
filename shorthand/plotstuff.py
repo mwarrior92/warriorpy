@@ -50,6 +50,14 @@ def set_dim(fig, ax, xlim=None, ylim=None, xpadding=False, ypadding=False, xdim=
     if xlim is None:
         ax.autoscale(axis='x', tight=True)
         xlim = ax.get_xlim()
+    elif xlim[0] is None:
+        a = ax.get_xlim()
+        xlim = [a[0], xlim[1]]
+        plt.xlim(xlim)
+    elif xlim[1] is None:
+        b = ax.get_xlim()
+        xlim = [xlim[0], b[1]]
+        plt.xlim(xlim)
     else:
         plt.xlim(xlim)
     if xpadding:
@@ -65,6 +73,14 @@ def set_dim(fig, ax, xlim=None, ylim=None, xpadding=False, ypadding=False, xdim=
     if ylim is None:
         ax.autoscale(axis='y', tight=True)
         ylim = ax.get_ylim()
+    elif ylim[0] is None:
+        a = ax.get_ylim()
+        ylim = [a[0], ylim[1]]
+        plt.ylim(ylim)
+    elif ylim[1] is None:
+        b = ax.get_ylim()
+        ylim = [ylim[0], b[1]]
+        plt.ylim(ylim)
     else:
         plt.ylim(ylim)
     if ypadding:

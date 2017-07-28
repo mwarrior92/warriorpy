@@ -11,12 +11,12 @@ from collections import defaultdict as ddict
 from bs4 import BeautifulSoup
 import json
 import time
-import logging
-import logging.config
 
 ##################################################################
 #                           LOGGING
 ##################################################################
+import logging
+import logging.config
 
 logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
 
@@ -324,6 +324,35 @@ def pjsonin(pathtofile):
 
     return data
 
+def picklein(pathtofile):
+    data = None
+    try:
+        f = get_file(pathtofile, 'r+')
+        try:
+            data = pickle.load(f)
+        finally:
+            f.close()
+    except (IOError, EOFError, OSError, ValueError):
+        logger.error("failed to read "+pathtofile)
+    logger.debug("read from "+pathtofile)
+
+    return data
+
+def pickleout(pathtofile, content):
+    data = None
+    try:
+        f = get_file(pathtofile, 'w+')
+        try:
+            data = pickle.dump(content, f)
+        finally:
+            f.close()
+    except (IOError, EOFError, OSError, ValueError):
+        logger.error("failed to read "+pathtofile)
+    logger.debug("read from "+pathtofile)
+
+    return data
+
+
 def pjsonlistin(pathtofile):
     lines = getlines(pathtofile)
     for ind, line in enumerate(lines):
@@ -424,3 +453,17 @@ def tuplize(l):
         l = [l]
     s = sorted(l)
     return tuple(s)
+
+
+def make_hashable(o):
+    if any([type(o) is z for z in [dict, ddict]]):
+        for k in o:
+            o[k] = make_hashable(o[k])
+        return dict(o)
+    elif any([type(o) is z for z in [list, tuple, set]]):
+        l = list()
+        for item in o:
+            l.append(make_hashable(item))
+        return tuple(l)
+    else:
+        return o

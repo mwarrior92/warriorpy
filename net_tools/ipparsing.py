@@ -17,7 +17,7 @@ def is_local(ip):
 
 
 def is_public(ip):
-    if type(ip) is int:
+    if isinstance(ip, Number):
         ip = int2ip(ip)
     return IP2(ip+"/32").iptype() == "PUBLIC"
 

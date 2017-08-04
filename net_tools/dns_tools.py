@@ -11,6 +11,19 @@ import IPy
 import dns.resolver, dns.message, dns.rdatatype
 from ipwhois import IPWhois
 
+##################################################################
+#                           LOGGING
+##################################################################
+import logging
+import logging.config
+
+logging.config.fileConfig('logging.conf', disable_existing_loggers=False)
+
+# create logger
+logger = logging.getLogger(__name__)
+logger.debug(__name__+"logger loaded")
+
+
 
 resolver = dns.resolver.Resolver()
 resolver.lifetime = 1
@@ -61,7 +74,7 @@ def get_owner_name(server_ip, res=None):
         else:
             return res['network']['name']
     except Exception as e:
-        print e
+        logger.debug(str(e))
     return None
 
 
@@ -75,5 +88,5 @@ def get_cidr(server_ip, res=None):
         else:
             return res['network']['cidr']
     except Exception as e:
-        print e
+        logger.debug(str(e))
     return None

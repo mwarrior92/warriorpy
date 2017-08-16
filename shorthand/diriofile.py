@@ -11,6 +11,7 @@ from collections import defaultdict as ddict
 from bs4 import BeautifulSoup
 import json
 import time
+import numpy as np
 
 ##################################################################
 #                           LOGGING
@@ -397,7 +398,9 @@ def list2col(lst):
     for item in lst:
         if type(item) is tuple \
                 or type(item) is list \
-                or type(item) is set:
+                or type(item) is set \
+                or type(item) is np.ndarray \
+                or type(item) is np.array:
             tmpstr = list2line(item)
         else:
             tmpstr = str(item)

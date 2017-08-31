@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 import json
 import time
 import numpy as np
+import inspect as inspct
 
 ##################################################################
 #                           LOGGING
@@ -470,3 +471,7 @@ def make_hashable(o):
         return tuple(l)
     else:
         return o
+
+
+def inspect(val):
+    return inspct.getsource(val)

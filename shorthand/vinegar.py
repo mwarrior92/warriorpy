@@ -66,6 +66,15 @@ def cache_me_outside(func):
 
         logger.debug("cache miss")
         dcache = func(*args, **kwargs)
+        # reload outer cache file just in case it was modified in executing func
+        # (for recursive functions)
+        try:
+            cache = df.picklein(pf)
+            if cache is None:
+                cache = dict()
+        except Exception as e:
+            logger.error("exception:"+str(e))
+            cache = dict()
         dataf = datadir+func.__name__+"_"+str(time.time())+".pickle"
         cache[invals] = dataf
         df.pickleout(pf, cache)

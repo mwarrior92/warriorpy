@@ -3,6 +3,22 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.ticker import FormatStrFormatter, ScalarFormatter, FuncFormatter
 import numpy
+import itertools
+
+# for matplotlib version 2.0+
+#markers = ['p', None, 's', '^', 'o', 'X', 'D', 'P', '*', 'v', 'd']
+# for matplotlib version < 2.0
+markers = ['p', None, 's', '^', 'o', 'D', '*', 'v', 'd']
+styles = [':', '-', '-.', '--']
+
+
+def get_markers():
+    return itertools.cycle(markers)
+
+
+def get_styles():
+    return itertools.cycle(styles)
+
 
 def to_percent(y, position):
     # Ignore the passed in position. This has the effect of scaling the default

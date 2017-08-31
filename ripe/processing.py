@@ -27,9 +27,12 @@ def decode_dns(datastr):
 
 
 def isbadquery(data):
-    for res in data['resultset']:
-        if 'error' in res:
-            return True
+    if 'resultset' in data:
+        for res in data['resultset']:
+            if 'error' in res:
+                return True
+    else:
+        return True
     return False
 
 
@@ -43,7 +46,7 @@ def parse_dns_json(data):
         ret['probe_ip'] = ipp.ip2int(data['from'])
     except:
         ret['probe_ip'] = data['from']
-        logger.error("failed to convert: "+data['from'])
+        logger.debug("failed to convert: "+data['from'])
     ret['probe_id'] = data['prb_id']
     ret['time'] = data['timestamp']
     ret['ipv4'] = dict()
@@ -62,7 +65,7 @@ def parse_dns_json(data):
                     for i in dnsmsg.answer[0].items:
                         ret[ipv]['answer_ip_list'].append(ipp.ip2int(i.to_text()))
             except Exception as e:
-                logger.error('exception: '+str(e))
+                logger.debug('exception: '+str(e))
         else:
             ipv = 'ipv6'
             ret[ipv]['perceived_ldns'] = res['dst_addr']
@@ -76,7 +79,7 @@ def parse_dns_json(data):
                     for i in dnsmsg.answer[0].items:
                         ret[ipv]['answer_ip_list'].append(i.to_text())
             except Exception as e:
-                logger.error('exception: '+str(e))
+                logger.debug('exception: '+str(e))
         #what ldns did the probe think it was using?
         if ipp.is_local(res['dst_addr']):
             ret['private_ldns_'+ipv] = True
